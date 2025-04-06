@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>XO Online</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f4f4f4;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding-top: 40px;
+    }
+    h1 { margin-bottom: 20px; }
+    #status { margin: 10px; font-weight: bold; }
+    #board {
+      display: grid;
+      grid-template-columns: repeat(3, 100px);
+      grid-gap: 5px;
+    }
+    .cell {
+      width: 100px;
+      height: 100px;
+      background: white;
+      border: 2px solid #444;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      font-size: 2.5em;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <h1>XO Multiplayer</h1>
+  <div id="status">Connecting...</div>
+  <div id="board"></div>
+
+  <script>
+    const board = document.getElementById('board');
+    const status = document.getElementById('status');
+    const cells = [];
+    let mySymbol = null;
+    let myTurn = false;
+    const socket = new WebSocket("ws://localhost:3000");
+
+    for (let i = 0; i < 9; i++) {
+      const cell = document.createElement('div');
+      cell.classList.add('cell');
+      cell.dataset.index = i;
+      cell.addEventListener('click', () => {
+        if (myTurn && cell.textContent === '') {
+          socket.send(JSON.stringify({ type: 'move', index: i }));
+        }
+      });
+      board.appendChild(cell);
+      cells.push(cell);
+    }
+
+    socket.addEventListener('message', event => {
+      const msg = JSON.parse(event.data);
+
+      if (msg.type === 'init') {
+        mySymbol = msg.symbol;
+        status.textContent = `You are '${mySymbol}'. Waiting for opponent...`;
+      }
+
+      if (msg.type === 'start') {
+        myTurn = msg.turn;
+        status.textContent = myTurn ? "Your turn" : "Opponent's turn";
+      }
+
+      if (msg.type === 'move') {
+        cells[msg.index].textContent = msg.symbol;
+        myTurn = msg.turn;
+        status.textContent = myTurn ? "Your turn" : "Opponent's turn";
+      }
+
+      if (msg.type === 'win') {
+        status.textContent = msg.winner === mySymbol ? "You win!" : "You lose!";
+        myTurn = false;
+      }
+
+      if (msg.type === 'draw') {
+        status.textContent = "Draw!";
+        myTurn = false;
+      }
+
+      if (msg.type === 'reset') {
+        cells.forEach(c => c.textContent = '');
+      }
+
+      if (msg.type === 'opponent_left') {
+        status.textContent = "Opponent left. Waiting for a new one...";
+        cells.forEach(c => c.textContent = '');
+      }
+    });
+  </script>
+</body>
+</html>
